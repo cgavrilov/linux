@@ -4796,11 +4796,12 @@ static bool pcie_wait_for_link_delay(struct pci_dev *pdev, bool active,
 		msleep(20);
 	rc = pcie_wait_for_link_status(pdev, false, active);
 	if (active) {
+#if 0
 		if (rc)
 			rc = pcie_failed_link_retrain(pdev);
 		if (rc)
 			return false;
-
+#endif
 		msleep(delay);
 		return true;
 	}
@@ -4808,7 +4809,7 @@ static bool pcie_wait_for_link_delay(struct pci_dev *pdev, bool active,
 	if (rc)
 		return false;
 
-	return true;
+	return rc;
 }
 
 /**
