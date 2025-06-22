@@ -769,7 +769,7 @@ static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 	 */
 	if (dma_limit > DMA_BIT_MASK(32) && (size - 1) <= DMA_BIT_MASK(32) && dev->iommu->pci_32bit_workaround) {
 		iova = alloc_iova_fast(iovad, iova_len,
-				       DMA_BIT_MASK(32) >> shift, false);
+				       DMA_BIT_MASK(32) >> shift, false, ALLOC_IOVA_ALIGN_SIZE);
 		if (iova)
 			goto done;
 
@@ -777,7 +777,7 @@ static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 		dev_notice(dev, "Using %d-bit DMA addresses\n", bits_per(dma_limit));
 	}
 
-	iova = alloc_iova_fast(iovad, iova_len, dma_limit >> shift, true);
+	iova = alloc_iova_fast(iovad, iova_len, dma_limit >> shift, true, ALLOC_IOVA_ALIGN_SIZE);
 done:
 	return (dma_addr_t)iova << shift;
 }

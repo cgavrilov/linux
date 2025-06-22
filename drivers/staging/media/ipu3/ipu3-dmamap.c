@@ -105,7 +105,7 @@ void *imgu_dmamap_alloc(struct imgu_device *imgu, struct imgu_css_map *map,
 	dev_dbg(dev, "%s: allocating %zu\n", __func__, size);
 
 	iova = alloc_iova(&imgu->iova_domain, size >> shift,
-			  imgu->mmu->aperture_end >> shift, 0);
+			  imgu->mmu->aperture_end >> shift, ALLOC_IOVA_ALIGN_NONE);
 	if (!iova)
 		return NULL;
 
@@ -205,7 +205,7 @@ int imgu_dmamap_map_sg(struct imgu_device *imgu, struct scatterlist *sglist,
 		nents, size >> shift);
 
 	iova = alloc_iova(&imgu->iova_domain, size >> shift,
-			  imgu->mmu->aperture_end >> shift, 0);
+			  imgu->mmu->aperture_end >> shift, ALLOC_IOVA_ALIGN_NONE);
 	if (!iova)
 		return -ENOMEM;
 
