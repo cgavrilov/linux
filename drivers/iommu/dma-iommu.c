@@ -767,7 +767,7 @@ static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 	 * some inherent bug in handling >32-bit addresses, or not all the
 	 * expected address bits are wired up between the device and the IOMMU.
 	 */
-	if (dma_limit > DMA_BIT_MASK(32) && dev->iommu->pci_32bit_workaround) {
+	if (dma_limit > DMA_BIT_MASK(32) && (size - 1) <= DMA_BIT_MASK(32) && dev->iommu->pci_32bit_workaround) {
 		iova = alloc_iova_fast(iovad, iova_len,
 				       DMA_BIT_MASK(32) >> shift, false);
 		if (iova)
