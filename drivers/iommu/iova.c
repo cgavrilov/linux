@@ -163,17 +163,21 @@ iova_insert_rbtree(struct rb_root *root, struct iova *iova,
 
 static int __alloc_and_insert_iova_range(struct iova_domain *iovad,
 		unsigned long size, unsigned long limit_pfn,
-			struct iova *new, bool size_aligned)
+			struct iova *new, iova_align_t align)
 {
 	struct rb_node *curr, *prev;
 	struct iova *curr_iova;
 	unsigned long flags;
 	unsigned long new_pfn, retry_pfn;
-	unsigned long align_mask = ~0UL;
+	unsigned long align_mask;
 	unsigned long high_pfn = limit_pfn, low_pfn = iovad->start_pfn;
 
-	if (size_aligned)
-		align_mask <<= fls_long(size - 1);
+	switch (align) {
+		case ALLOC_IOVA_ALIGN_NONE: align_mask = ~0UL; break;
+		case ALLOC_IOVA_ALIGN_SIZE: align_mask = (~0UL) << fls_long(size - 1); break;
+		case ALLOC_IOVA_ALIGN_PMD: align_mask = PMD_MASK; break;
+		case ALLOC_IOVA_ALIGN_PUD: align_mask = PUD_MASK; break;
+	}
 
 	/* Walk the tree backwards */
 	spin_lock_irqsave(&iovad->iova_rbtree_lock, flags);
@@ -206,7 +210,7 @@ retry:
 		goto iova32_full;
 	}
 
-	/* pfn_lo will point to size aligned address if size_aligned is set */
+	/* pfn_lo will point to size aligned address if align is not ALLOC_IOVA_ALIGN_NONE */
 	new->pfn_lo = new_pfn;
 	new->pfn_hi = new->pfn_lo + size - 1;
 
@@ -242,16 +246,19 @@ static void free_iova_mem(struct iova *iova)
  * @iovad: - iova domain in question
  * @size: - size of page frames to allocate
  * @limit_pfn: - max limit address
- * @size_aligned: - set if size_aligned address range is required
+ * @align: - alignment
  * This function allocates an iova in the range iovad->start_pfn to limit_pfn,
- * searching top-down from limit_pfn to iovad->start_pfn. If the size_aligned
- * flag is set then the allocated address iova->pfn_lo will be naturally
- * aligned on roundup_power_of_two(size).
+ * searching top-down from limit_pfn to iovad->start_pfn.
+ * If align is not set to ALLOC_IOVA_ALIGN_NONE, then the allocated address
+ * iova->pfn_lo will be naturally aligned as follows:
+ *  roundup_power_of_two(size) for align == ALLOC_IOVA_ALIGN_SIZE
+ *  1UL << PMD_SHIFT for align == ALLOC_IOVA_ALIGN_PMD
+ *  1UL << PUD_SHIFT for align == ALLOC_IOVA_ALIGN_PUD
  */
 struct iova *
 alloc_iova(struct iova_domain *iovad, unsigned long size,
 	unsigned long limit_pfn,
-	bool size_aligned)
+	iova_align_t align)
 {
 	struct iova *new_iova;
 	int ret;
@@ -261,7 +268,7 @@ alloc_iova(struct iova_domain *iovad, unsigned long size,
 		return NULL;
 
 	ret = __alloc_and_insert_iova_range(iovad, size, limit_pfn + 1,
-			new_iova, size_aligned);
+			new_iova, align);
 
 	if (ret) {
 		free_iova_mem(new_iova);
@@ -369,13 +376,14 @@ EXPORT_SYMBOL_GPL(free_iova);
  * @size: - size of page frames to allocate
  * @limit_pfn: - max limit address
  * @flush_rcache: - set to flush rcache on regular allocation failure
+ * @align: - alignment constraint on DMA address
  * This function tries to satisfy an iova allocation from the rcache,
  * and falls back to regular allocation on failure. If regular allocation
  * fails too and the flush_rcache flag is set then the rcache will be flushed.
 */
 unsigned long
 alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
-		unsigned long limit_pfn, bool flush_rcache)
+		unsigned long limit_pfn, bool flush_rcache, iova_align_t align)
 {
 	unsigned long iova_pfn;
 	struct iova *new_iova;
@@ -394,7 +402,7 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 		return iova_pfn;
 
 retry:
-	new_iova = alloc_iova(iovad, size, limit_pfn, true);
+	new_iova = alloc_iova(iovad, size, limit_pfn, align);
 	if (!new_iova) {
 		unsigned int cpu;
 

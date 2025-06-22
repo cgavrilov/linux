@@ -80,6 +80,13 @@ static inline unsigned long iova_pfn(struct iova_domain *iovad, dma_addr_t iova)
 	return iova >> iova_shift(iovad);
 }
 
+typedef enum {
+	ALLOC_IOVA_ALIGN_NONE,
+	ALLOC_IOVA_ALIGN_SIZE,
+	ALLOC_IOVA_ALIGN_PMD,
+	ALLOC_IOVA_ALIGN_PUD,
+} iova_align_t;
+
 #if IS_REACHABLE(CONFIG_IOMMU_IOVA)
 int iova_cache_get(void);
 void iova_cache_put(void);
@@ -90,11 +97,11 @@ void free_iova(struct iova_domain *iovad, unsigned long pfn);
 void __free_iova(struct iova_domain *iovad, struct iova *iova);
 struct iova *alloc_iova(struct iova_domain *iovad, unsigned long size,
 	unsigned long limit_pfn,
-	bool size_aligned);
+	iova_align_t align);
 void free_iova_fast(struct iova_domain *iovad, unsigned long pfn,
 		    unsigned long size);
 unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
-			      unsigned long limit_pfn, bool flush_rcache);
+			      unsigned long limit_pfn, bool flush_rcache, iova_align_t align);
 struct iova *reserve_iova(struct iova_domain *iovad, unsigned long pfn_lo,
 	unsigned long pfn_hi);
 void init_iova_domain(struct iova_domain *iovad, unsigned long granule,
@@ -123,7 +130,7 @@ static inline void __free_iova(struct iova_domain *iovad, struct iova *iova)
 static inline struct iova *alloc_iova(struct iova_domain *iovad,
 				      unsigned long size,
 				      unsigned long limit_pfn,
-				      bool size_aligned)
+				      iova_align_t align)
 {
 	return NULL;
 }
@@ -137,7 +144,7 @@ static inline void free_iova_fast(struct iova_domain *iovad,
 static inline unsigned long alloc_iova_fast(struct iova_domain *iovad,
 					    unsigned long size,
 					    unsigned long limit_pfn,
-					    bool flush_rcache)
+					    bool flush_rcache, iova_align_t align)
 {
 	return 0;
 }

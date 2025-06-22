@@ -362,7 +362,7 @@ vduse_domain_alloc_iova(struct iova_domain *iovad,
 	unsigned long iova_len = iova_align(iovad, size) >> shift;
 	unsigned long iova_pfn;
 
-	iova_pfn = alloc_iova_fast(iovad, iova_len, limit >> shift, true);
+	iova_pfn = alloc_iova_fast(iovad, iova_len, limit >> shift, true, ALLOC_IOVA_ALIGN_SIZE);
 
 	return (dma_addr_t)iova_pfn << shift;
 }
