@@ -721,7 +721,7 @@ int hmm_dma_map_alloc(struct device *dev, struct hmm_dma_map *map,
 		return -ENOMEM;
 
 	use_iova = dma_iova_try_alloc(dev, &map->state, 0,
-			nr_entries * PAGE_SIZE);
+			nr_entries * PAGE_SIZE, ALLOC_IOVA_ALIGN_NONE);
 	if (!use_iova && dma_need_unmap(dev)) {
 		map->dma_list = kvcalloc(nr_entries, sizeof(*map->dma_list),
 					 GFP_KERNEL | __GFP_NOWARN);

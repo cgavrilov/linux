@@ -486,7 +486,7 @@ matter.  All the considerations from the previous section apply here as well.
 ::
 
     bool dma_iova_try_alloc(struct device *dev, struct dma_iova_state *state,
-		phys_addr_t phys, size_t size);
+		phys_addr_t phys, size_t size, iova_align_t align);
 
 Is used to try to allocate IOVA space for mapping operation.  If it returns
 false this API can't be used for the given device and the normal streaming

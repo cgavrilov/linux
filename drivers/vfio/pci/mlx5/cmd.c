@@ -387,7 +387,7 @@ static int register_dma_pages(struct mlx5_core_dev *mdev, u32 npages,
 
 	mtt = (__be64 *)MLX5_ADDR_OF(create_mkey_in, mkey_in, klm_pas_mtt);
 
-	if (dma_iova_try_alloc(mdev->device, state, 0, npages * PAGE_SIZE)) {
+	if (dma_iova_try_alloc(mdev->device, state, 0, npages * PAGE_SIZE, ALLOC_IOVA_ALIGN_NONE)) {
 		addr = state->addr;
 		for (i = 0; i < npages; i++) {
 			err = dma_iova_link(mdev->device, state,

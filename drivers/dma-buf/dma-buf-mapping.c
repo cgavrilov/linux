@@ -125,7 +125,7 @@ struct sg_table *dma_buf_phys_vec_to_sgt(struct dma_buf_attachment *attach,
 			goto err_free_dma;
 		}
 
-		dma_iova_try_alloc(attach->dev, dma->state, 0, size);
+		dma_iova_try_alloc(attach->dev, dma->state, 0, size, ALLOC_IOVA_ALIGN_NONE);
 		break;
 	default:
 		ret = -EINVAL;

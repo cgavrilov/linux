@@ -746,8 +746,28 @@ static int dma_info_to_prot(enum dma_data_direction dir, bool coherent,
 	}
 }
 
+static iova_align_t dma_info_to_alignment(unsigned long attrs)
+{
+	iova_align_t align = ALLOC_IOVA_ALIGN_NONE;
+
+	if (attrs & DMA_ATTR_IOVA_ALIGN_PMD) {
+		if (attrs & (DMA_ATTR_IOVA_ALIGN_PUD | DMA_ATTR_IOVA_ALIGN_SIZE))
+			return ALLOC_IOVA_ALIGN_INV;
+		return ALLOC_IOVA_ALIGN_PMD;
+	} else if (attrs & DMA_ATTR_IOVA_ALIGN_PUD) {
+		if (attrs & (DMA_ATTR_IOVA_ALIGN_PMD | DMA_ATTR_IOVA_ALIGN_SIZE))
+			return ALLOC_IOVA_ALIGN_INV;
+		return ALLOC_IOVA_ALIGN_PUD;
+	} else if (attrs & DMA_ATTR_IOVA_ALIGN_SIZE) {
+		if (attrs & (DMA_ATTR_IOVA_ALIGN_PMD | DMA_ATTR_IOVA_ALIGN_PUD))
+			return ALLOC_IOVA_ALIGN_INV;
+		return ALLOC_IOVA_ALIGN_SIZE;
+	}
+	return align;
+}
+
 static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
-		size_t size, u64 dma_limit, struct device *dev)
+		size_t size, u64 dma_limit, struct device *dev, iova_align_t align)
 {
 	struct iommu_dma_cookie *cookie = domain->iova_cookie;
 	struct iova_domain *iovad = &cookie->iovad;
@@ -779,7 +799,7 @@ static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 	 */
 	if (dma_limit > DMA_BIT_MASK(32) && (size - 1) <= DMA_BIT_MASK(32) && dev->iommu->pci_32bit_workaround) {
 		iova = alloc_iova_fast(iovad, iova_len,
-				       DMA_BIT_MASK(32) >> shift, false, ALLOC_IOVA_ALIGN_SIZE);
+				       DMA_BIT_MASK(32) >> shift, false, align);
 		if (iova)
 			goto done;
 
@@ -787,7 +807,7 @@ static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 		dev_notice(dev, "Using %d-bit DMA addresses\n", bits_per(dma_limit));
 	}
 
-	iova = alloc_iova_fast(iovad, iova_len, dma_limit >> shift, true, ALLOC_IOVA_ALIGN_SIZE);
+	iova = alloc_iova_fast(iovad, iova_len, dma_limit >> shift, true, align);
 done:
 	return (dma_addr_t)iova << shift;
 }
@@ -833,7 +853,7 @@ static void __iommu_dma_unmap(struct device *dev, dma_addr_t dma_addr,
 }
 
 static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys,
-		size_t size, int prot, u64 dma_mask)
+		size_t size, int prot, u64 dma_mask, iova_align_t align)
 {
 	struct iommu_domain *domain = iommu_get_dma_domain(dev);
 	struct iommu_dma_cookie *cookie = domain->iova_cookie;
@@ -852,7 +872,7 @@ static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys,
 
 	size = iova_align(iovad, size + iova_off);
 
-	iova = iommu_dma_alloc_iova(domain, size, dma_mask, dev);
+	iova = iommu_dma_alloc_iova(domain, size, dma_mask, dev, align);
 	if (!iova)
 		return DMA_MAPPING_ERROR;
 
@@ -938,6 +958,12 @@ static struct page **__iommu_dma_alloc_noncontiguous(struct device *dev,
 	struct page **pages;
 	dma_addr_t iova;
 	ssize_t ret;
+	iova_align_t align = dma_info_to_alignment(attrs);
+
+	if (align == ALLOC_IOVA_ALIGN_INV) {
+		dev_warn_once(dev, "%s: invalid alignment requested\n", __func__);
+		return NULL;
+	}
 
 	if (static_branch_unlikely(&iommu_deferred_attach_enabled) &&
 	    iommu_deferred_attach(dev, domain))
@@ -960,7 +986,7 @@ static struct page **__iommu_dma_alloc_noncontiguous(struct device *dev,
 		return NULL;
 
 	size = iova_align(iovad, size);
-	iova = iommu_dma_alloc_iova(domain, size, dev->coherent_dma_mask, dev);
+	iova = iommu_dma_alloc_iova(domain, size, dev->coherent_dma_mask, dev, align);
 	if (!iova)
 		goto out_free_pages;
 
@@ -1204,7 +1230,12 @@ dma_addr_t iommu_dma_map_phys(struct device *dev, phys_addr_t phys, size_t size,
 	struct iommu_dma_cookie *cookie = domain->iova_cookie;
 	struct iova_domain *iovad = &cookie->iovad;
 	dma_addr_t iova, dma_mask = dma_get_mask(dev);
+	iova_align_t align = dma_info_to_alignment(attrs);
 
+	if (align == ALLOC_IOVA_ALIGN_INV) {
+		dev_warn_once(dev, "%s: invalid alignment requested\n", __func__);
+		return DMA_MAPPING_ERROR;
+	}
 	/*
 	 * If both the physical buffer start address and size are page aligned,
 	 * we don't need to use a bounce page.
@@ -1222,7 +1253,7 @@ dma_addr_t iommu_dma_map_phys(struct device *dev, phys_addr_t phys, size_t size,
 	if (!coherent && !(attrs & (DMA_ATTR_SKIP_CPU_SYNC | DMA_ATTR_MMIO)))
 		arch_sync_dma_for_device(phys, size, dir);
 
-	iova = __iommu_dma_map(dev, phys, size, prot, dma_mask);
+	iova = __iommu_dma_map(dev, phys, size, prot, dma_mask, align);
 	if (iova == DMA_MAPPING_ERROR && !(attrs & DMA_ATTR_MMIO))
 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
 	return iova;
@@ -1399,6 +1430,12 @@ int iommu_dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
 	unsigned long mask = dma_get_seg_boundary(dev);
 	ssize_t ret;
 	int i;
+	iova_align_t align = dma_info_to_alignment(attrs);
+
+	if (align == ALLOC_IOVA_ALIGN_INV) {
+		dev_warn_once(dev, "%s: invalid alignment requested\n", __func__);
+		return -EINVAL;
+	}
 
 	if (static_branch_unlikely(&iommu_deferred_attach_enabled)) {
 		ret = iommu_deferred_attach(dev, domain);
@@ -1480,7 +1517,7 @@ int iommu_dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
 	if (!iova_len)
 		return __finalise_sg(dev, sg, nents, 0);
 
-	iova = iommu_dma_alloc_iova(domain, iova_len, dma_get_mask(dev), dev);
+	iova = iommu_dma_alloc_iova(domain, iova_len, dma_get_mask(dev), dev, align);
 	if (!iova) {
 		ret = -ENOMEM;
 		goto out_restore_sg;
@@ -1638,6 +1675,12 @@ void *iommu_dma_alloc(struct device *dev, size_t size, dma_addr_t *handle,
 	int ioprot = dma_info_to_prot(DMA_BIDIRECTIONAL, coherent, attrs);
 	struct page *page = NULL;
 	void *cpu_addr;
+	iova_align_t align = dma_info_to_alignment(attrs);
+
+	if (align == ALLOC_IOVA_ALIGN_INV) {
+		dev_warn_once(dev, "%s: invalid alignment requested\n", __func__);
+		return NULL;
+	}
 
 	gfp |= __GFP_ZERO;
 
@@ -1656,7 +1699,7 @@ void *iommu_dma_alloc(struct device *dev, size_t size, dma_addr_t *handle,
 		return NULL;
 
 	*handle = __iommu_dma_map(dev, page_to_phys(page), size, ioprot,
-			dev->coherent_dma_mask);
+			dev->coherent_dma_mask, align);
 	if (*handle == DMA_MAPPING_ERROR) {
 		__iommu_dma_free(dev, size, cpu_addr);
 		return NULL;
@@ -1749,6 +1792,7 @@ size_t iommu_dma_max_mapping_size(struct device *dev)
  * @state: IOVA state
  * @phys: physical address
  * @size: IOVA size
+ * @align: DMA address alignment
  *
  * Check if @dev supports the IOVA-based DMA API, and if yes allocate IOVA space
  * for the given base address and size.
@@ -1760,7 +1804,7 @@ size_t iommu_dma_max_mapping_size(struct device *dev)
  * allocated, or %false if the regular DMA API should be used.
  */
 bool dma_iova_try_alloc(struct device *dev, struct dma_iova_state *state,
-		phys_addr_t phys, size_t size)
+		phys_addr_t phys, size_t size, iova_align_t align)
 {
 	struct iommu_dma_cookie *cookie;
 	struct iommu_domain *domain;
@@ -1794,7 +1838,7 @@ bool dma_iova_try_alloc(struct device *dev, struct dma_iova_state *state,
 
 	addr = iommu_dma_alloc_iova(domain,
 			iova_align(iovad, size + iova_off),
-			dma_get_mask(dev), dev, ALLOC_IOVA_ALIGN_SIZE);
+			dma_get_mask(dev), dev, align);
 	if (!addr)
 		return false;
 
@@ -2163,7 +2207,7 @@ static struct iommu_dma_msi_page *iommu_dma_get_msi_page(struct device *dev,
 	if (!msi_page)
 		return NULL;
 
-	iova = iommu_dma_alloc_iova(domain, size, dma_get_mask(dev), dev);
+	iova = iommu_dma_alloc_iova(domain, size, dma_get_mask(dev), dev, ALLOC_IOVA_ALIGN_NONE);
 	if (!iova)
 		goto out_free_page;
 
