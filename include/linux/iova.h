@@ -90,11 +90,11 @@ void free_iova(struct iova_domain *iovad, unsigned long pfn);
 void __free_iova(struct iova_domain *iovad, struct iova *iova);
 struct iova *alloc_iova(struct iova_domain *iovad, unsigned long size,
 	unsigned long limit_pfn,
-	bool size_aligned);
+	iova_align_t align);
 void free_iova_fast(struct iova_domain *iovad, unsigned long pfn,
 		    unsigned long size);
 unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
-			      unsigned long limit_pfn, bool flush_rcache);
+			      unsigned long limit_pfn, bool flush_rcache, iova_align_t align);
 struct iova *reserve_iova(struct iova_domain *iovad, unsigned long pfn_lo,
 	unsigned long pfn_hi);
 void init_iova_domain(struct iova_domain *iovad, unsigned long granule,
@@ -123,7 +123,7 @@ static inline void __free_iova(struct iova_domain *iovad, struct iova *iova)
 static inline struct iova *alloc_iova(struct iova_domain *iovad,
 				      unsigned long size,
 				      unsigned long limit_pfn,
-				      bool size_aligned)
+				      iova_align_t align)
 {
 	return NULL;
 }
@@ -137,7 +137,7 @@ static inline void free_iova_fast(struct iova_domain *iovad,
 static inline unsigned long alloc_iova_fast(struct iova_domain *iovad,
 					    unsigned long size,
 					    unsigned long limit_pfn,
-					    bool flush_rcache)
+					    bool flush_rcache, iova_align_t align)
 {
 	return 0;
 }

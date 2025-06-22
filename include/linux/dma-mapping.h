@@ -102,6 +102,15 @@ struct dma_iova_state {
  */
 #define DMA_IOVA_USE_SWIOTLB		(1ULL << 63)
 
+typedef enum {
+	ALLOC_IOVA_ALIGN_NONE,
+	ALLOC_IOVA_ALIGN_SIZE,
+	ALLOC_IOVA_ALIGN_PMD,
+	ALLOC_IOVA_ALIGN_PUD,
+	ALLOC_IOVA_ALIGN_INV,
+} iova_align_t;
+
+
 static inline size_t dma_iova_size(struct dma_iova_state *state)
 {
 	/* Casting is needed for 32-bits systems */
