@@ -177,6 +177,7 @@ static int __alloc_and_insert_iova_range(struct iova_domain *iovad,
 		case ALLOC_IOVA_ALIGN_SIZE: align_mask = (~0UL) << fls_long(size - 1); break;
 		case ALLOC_IOVA_ALIGN_PMD: align_mask = PMD_MASK; break;
 		case ALLOC_IOVA_ALIGN_PUD: align_mask = PUD_MASK; break;
+		default: return -EINVAL;
 	}
 
 	/* Walk the tree backwards */
