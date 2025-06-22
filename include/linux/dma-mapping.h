@@ -59,6 +59,16 @@
 #define DMA_ATTR_PRIVILEGED		(1UL << 9)
 
 /*
+ * Alignment flags when using IOMMU. In the case of direct mapping, DMA address
+ * will typically have the same alignment as the virtual address. So, alignment
+ * expectation works in general case if the virtual address is aligned to the
+ * requested alignment.
+ */
+#define DMA_ATTR_IOVA_ALIGN_PMD (1UL << 10)
+#define DMA_ATTR_IOVA_ALIGN_PUD (1UL << 11)
+#define DMA_ATTR_IOVA_ALIGN_SIZE (1UL << 12)
+
+/*
  * A dma_addr_t can hold any valid DMA or bus address for the platform.  It can
  * be given to a device to use as a DMA source or target.  It is specific to a
  * given device and there may be a translation between the CPU physical address
@@ -316,7 +326,7 @@ static inline bool dma_use_iova(struct dma_iova_state *state)
 }
 
 bool dma_iova_try_alloc(struct device *dev, struct dma_iova_state *state,
-		phys_addr_t phys, size_t size);
+		phys_addr_t phys, size_t size, iova_align_t align);
 void dma_iova_free(struct device *dev, struct dma_iova_state *state);
 void dma_iova_destroy(struct device *dev, struct dma_iova_state *state,
 		size_t mapped_len, enum dma_data_direction dir,
@@ -335,7 +345,7 @@ static inline bool dma_use_iova(struct dma_iova_state *state)
 	return false;
 }
 static inline bool dma_iova_try_alloc(struct device *dev,
-		struct dma_iova_state *state, phys_addr_t phys, size_t size)
+		struct dma_iova_state *state, phys_addr_t phys, size_t size, iova_align_t align)
 {
 	return false;
 }
