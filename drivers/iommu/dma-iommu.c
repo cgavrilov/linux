@@ -756,6 +756,14 @@ static iova_align_t dma_info_to_alignment(unsigned long attrs)
 	return align;
 }
 
+ssize_t iommu_domain_show_busy_regions(struct iommu_domain *domain, char *buf)
+{
+	struct iommu_dma_cookie *cookie = domain->iova_cookie;
+	struct iova_domain *iovad = &cookie->iovad;
+
+	return iovad_show_busy_regions(iovad, buf);
+}
+
 static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 		size_t size, u64 dma_limit, struct device *dev, iova_align_t align)
 {
