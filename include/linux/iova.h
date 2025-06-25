@@ -99,8 +99,12 @@ void __free_iova(struct iova_domain *iovad, struct iova *iova);
 struct iova *alloc_iova(struct iova_domain *iovad, unsigned long size,
 	unsigned long limit_pfn,
 	iova_align_t align);
+
 void free_iova_fast(struct iova_domain *iovad, unsigned long pfn,
 		    unsigned long size);
+
+ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf);
+
 unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 			      unsigned long limit_pfn, bool flush_rcache, iova_align_t align);
 struct iova *reserve_iova(struct iova_domain *iovad, unsigned long pfn_lo,
@@ -126,6 +130,11 @@ static inline void free_iova(struct iova_domain *iovad, unsigned long pfn)
 
 static inline void __free_iova(struct iova_domain *iovad, struct iova *iova)
 {
+}
+
+ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf)
+{
+	return -ENOTSUPP;
 }
 
 static inline struct iova *alloc_iova(struct iova_domain *iovad,

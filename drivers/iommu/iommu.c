@@ -34,7 +34,9 @@
 #include <linux/sched/mm.h>
 #include <linux/msi.h>
 #include <uapi/linux/iommufd.h>
-
+#ifdef CONFIG_IOMMU_DMA
+#include <linux/iommu-dma.h>
+#endif
 #include "dma-iommu.h"
 #include "iommu-priv.h"
 
@@ -927,6 +929,19 @@ static ssize_t iommu_group_show_resv_regions(struct iommu_group *group,
 	return offset;
 }
 
+#ifdef CONFIG_IOMMU_DMA
+static ssize_t iommu_group_show_busy_regions(struct iommu_group *group,
+					     char *buf)
+{
+	if (!group->domain)
+		return 0;
+
+	return iommu_domain_show_busy_regions(group->domain, buf);
+}	int off = 0;
+
+
+#endif
+
 static ssize_t iommu_group_show_type(struct iommu_group *group,
 				     char *buf)
 {
@@ -961,6 +976,11 @@ static IOMMU_GROUP_ATTR(name, S_IRUGO, iommu_group_show_name, NULL);
 
 static IOMMU_GROUP_ATTR(reserved_regions, 0444,
 			iommu_group_show_resv_regions, NULL);
+
+#ifdef CONFIG_IOMMU_DMA
+static IOMMU_GROUP_ATTR(busy_regions, 0444,
+			iommu_group_show_busy_regions, NULL);
+#endif
 
 static IOMMU_GROUP_ATTR(type, 0644, iommu_group_show_type,
 			iommu_group_store_type);
@@ -1048,6 +1068,15 @@ struct iommu_group *iommu_group_alloc(void)
 		kobject_put(group->devices_kobj);
 		return ERR_PTR(ret);
 	}
+
+#ifdef CONFIG_IOMMU_DMA
+	ret = iommu_group_create_file(group,
+				      &iommu_group_attr_busy_regions);
+	if (ret) {
+		kobject_put(group->devices_kobj);
+		return ERR_PTR(ret);
+	}
+#endif
 
 	ret = iommu_group_create_file(group, &iommu_group_attr_type);
 	if (ret) {

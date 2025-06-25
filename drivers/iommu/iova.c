@@ -280,6 +280,34 @@ alloc_iova(struct iova_domain *iovad, unsigned long size,
 }
 EXPORT_SYMBOL_GPL(alloc_iova);
 
+/*
+ * Helper function to output allocated regions to a buffer.
+ * Can be used as a show function for a sysfs attribute.
+ * buf is page aigned buffer of PAGE_SIZE.
+*/
+ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf)
+{
+	int off = 0;
+	struct rb_node *curr;
+	struct iova *curr_iova;
+	unsigned long flags;
+	unsigned long shift = iova_shift(iovad);
+
+	spin_lock_irqsave(&iovad->iova_rbtree_lock, flags);
+	curr = &iovad->anchor.node;
+	while(curr) {
+		curr_iova = rb_entry(curr, struct iova, node);
+		off += sysfs_emit_at(buf, off, "0x%016lx-0x%016lx\n", curr_iova->pfn_lo << shift,
+			((curr_iova->pfn_hi + 1) << shift) - 1);
+		curr = rb_prev(curr);
+		if (off >= (PAGE_SIZE - 38))
+			break;
+	}
+	spin_unlock_irqrestore(&iovad->iova_rbtree_lock, flags);
+	return off;
+}
+EXPORT_SYMBOL_GPL(iovad_show_busy_regions);
+
 static struct iova *
 private_find_iova(struct iova_domain *iovad, unsigned long pfn)
 {

@@ -1528,6 +1528,7 @@ static inline void iommu_debugfs_setup(void) {}
 
 #ifdef CONFIG_IOMMU_DMA
 int iommu_get_msi_cookie(struct iommu_domain *domain, dma_addr_t base);
+ssize_t iommu_domain_show_busy_regions(struct iommu_domain *domain, char *buf);
 #else /* CONFIG_IOMMU_DMA */
 static inline int iommu_get_msi_cookie(struct iommu_domain *domain, dma_addr_t base)
 {
