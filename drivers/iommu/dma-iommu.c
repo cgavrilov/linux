@@ -764,6 +764,15 @@ ssize_t iommu_domain_show_busy_regions(struct iommu_domain *domain, char *buf)
 	return iovad_show_busy_regions(iovad, buf);
 }
 
+int iommu_domain_get_lowest_free_address_range(struct iommu_domain *domain, struct addr_range_query *query, u64 *res)
+{
+	struct iommu_dma_cookie *cookie = domain->iova_cookie;
+	struct iova_domain *iovad = &cookie->iovad;
+
+	return iovad_get_lowest_free_address_range(iovad, query, res);
+}
+EXPORT_SYMBOL(iommu_domain_get_lowest_free_address_range);
+
 static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
 		size_t size, u64 dma_limit, struct device *dev, iova_align_t align)
 {

@@ -88,6 +88,13 @@ typedef enum {
 	ALLOC_IOVA_ALIGN_INV,
 } iova_align_t;
 
+struct addr_range_query {
+	u64 size;
+	u64 addr_min;
+	u64 addr_max;
+	u64 align;
+};
+
 #if IS_REACHABLE(CONFIG_IOMMU_IOVA)
 int iova_cache_get(void);
 void iova_cache_put(void);
@@ -104,6 +111,9 @@ void free_iova_fast(struct iova_domain *iovad, unsigned long pfn,
 		    unsigned long size);
 
 ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf);
+
+#define IOVAD_HAS_FREE_ADDR_RANGE
+int iovad_get_lowest_free_address_range(struct iova_domain *iovad, struct addr_range_query *query, u64 *res);
 
 unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 			      unsigned long limit_pfn, bool flush_rcache, iova_align_t align);
@@ -133,6 +143,11 @@ static inline void __free_iova(struct iova_domain *iovad, struct iova *iova)
 }
 
 ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf)
+{
+	return -ENOTSUPP;
+}
+
+int iovad_get_lowest_free_address_range(struct iova_domain *iovad, struct addr_range_query *query, u64 *res)
 {
 	return -ENOTSUPP;
 }
