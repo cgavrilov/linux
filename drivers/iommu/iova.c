@@ -308,6 +308,59 @@ ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf)
 }
 EXPORT_SYMBOL_GPL(iovad_show_busy_regions);
 
+/*
+ * Get a hint for lowest available address range.
+*/
+int iovad_get_lowest_free_address_range(struct iova_domain *iovad, struct addr_range_query *query, u64 *res)
+{
+	struct rb_node *curr, *prev;
+	struct iova *curr_iova, *prev_iova;
+	unsigned long flags;
+	unsigned long shift = iova_shift(iovad);
+	int ret = -ENOMEM;
+
+	if (query->align) {
+		if (!is_power_of_2(query->align))
+			return -EINVAL;
+	}
+	if (query->addr_min >= query->addr_max)
+		return -EINVAL;
+
+	spin_lock_irqsave(&iovad->iova_rbtree_lock, flags);
+	curr = &iovad->anchor.node;
+	curr_iova = rb_entry(curr, struct iova, node);
+	while(curr) {
+		prev = rb_prev(curr);
+		curr = prev;
+		if (prev) {
+			u64 free_start;
+			u64 free_end;
+			u64 alloc_end;
+			prev_iova = rb_entry(prev, struct iova, node);
+			free_start = (prev_iova->pfn_hi + 1) << shift;
+			free_end = (curr_iova->pfn_lo) << shift;
+			curr_iova = prev_iova;
+			if (query->align)
+				free_start = ALIGN(free_start, query->align);
+			alloc_end = free_start + query->size;
+
+			if (free_start < query->addr_min)
+				break;
+			if (alloc_end > query->addr_max)
+				continue; //does not match address consraint
+			if (free_start > alloc_end || free_start >= free_end || alloc_end > free_end)
+				continue; //overflow
+
+			ret = 0;
+			*res = free_start;
+		}
+	}
+	spin_unlock_irqrestore(&iovad->iova_rbtree_lock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL(iovad_get_lowest_free_address_range);
+
 static struct iova *
 private_find_iova(struct iova_domain *iovad, unsigned long pfn)
 {
