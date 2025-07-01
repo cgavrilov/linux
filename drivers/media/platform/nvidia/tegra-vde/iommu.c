@@ -30,7 +30,7 @@ int tegra_vde_iommu_map(struct tegra_vde *vde,
 	size = iova_align(&vde->iova, size);
 	shift = iova_shift(&vde->iova);
 
-	iova = alloc_iova(&vde->iova, size >> shift, end >> shift, ALLOC_IOVA_ALIGN_SIZE);
+	iova = alloc_iova(&vde->iova, size >> shift, 0, end >> shift, ALLOC_IOVA_ALIGN_SIZE);
 	if (!iova)
 		return -ENOMEM;
 

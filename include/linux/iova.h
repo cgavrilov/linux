@@ -105,8 +105,7 @@ unsigned long iova_rcache_range(void);
 void free_iova(struct iova_domain *iovad, unsigned long pfn);
 void __free_iova(struct iova_domain *iovad, struct iova *iova);
 struct iova *alloc_iova(struct iova_domain *iovad, unsigned long size,
-	unsigned long limit_pfn,
-	iova_align_t align);
+	unsigned long low_limit_pfn, unsigned long limit_pfn, iova_align_t align);
 
 void free_iova_fast(struct iova_domain *iovad, unsigned long pfn,
 		    unsigned long size);
@@ -117,7 +116,8 @@ ssize_t iovad_show_busy_regions(struct iova_domain *iovad, char *buf);
 int iovad_get_lowest_free_address_range(struct iova_domain *iovad, struct addr_range_query *query, u64 *res);
 
 unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
-			      unsigned long limit_pfn, bool flush_rcache, iova_align_t align);
+				unsigned long low_limit_pfn, unsigned long limit_pfn,
+				bool flush_rcache, iova_align_t align);
 struct iova *reserve_iova(struct iova_domain *iovad, unsigned long pfn_lo,
 	unsigned long pfn_hi);
 void init_iova_domain(struct iova_domain *iovad, unsigned long granule,
@@ -155,6 +155,7 @@ int iovad_get_lowest_free_address_range(struct iova_domain *iovad, struct addr_r
 
 static inline struct iova *alloc_iova(struct iova_domain *iovad,
 				      unsigned long size,
+				      unsigned long low_limit_pfn,
 				      unsigned long limit_pfn,
 				      iova_align_t align)
 {
@@ -169,6 +170,7 @@ static inline void free_iova_fast(struct iova_domain *iovad,
 
 static inline unsigned long alloc_iova_fast(struct iova_domain *iovad,
 					    unsigned long size,
+					    unsigned long low_limit_pfn,
 					    unsigned long limit_pfn,
 					    bool flush_rcache, iova_align_t align)
 {
