@@ -171,7 +171,7 @@ void *ipu7_dma_alloc(struct ipu7_bus_device *sys, size_t size,
 	size = PAGE_ALIGN(size);
 	count = PHYS_PFN(size);
 
-	iova = alloc_iova(&mmu->dmap->iovad, count,
+	iova = alloc_iova(&mmu->dmap->iovad, count, 0,
 			  PHYS_PFN(mmu->dmap->mmu_info->aperture_end), 0);
 	if (!iova)
 		goto out_kfree;
@@ -413,7 +413,7 @@ int ipu7_dma_map_sg(struct ipu7_bus_device *sys, struct scatterlist *sglist,
 		}
 		dev_dbg(dev, "iova[%lx:%lx] reserved for FW code.\n", lo, hi);
 	} else {
-		iova = alloc_iova(&mmu->dmap->iovad, npages,
+		iova = alloc_iova(&mmu->dmap->iovad, npages, 0,
 				  PHYS_PFN(mmu->dmap->mmu_info->aperture_end),
 				  0);
 		if (!iova)

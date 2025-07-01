@@ -24,6 +24,7 @@ static bool iova_rcache_insert(struct iova_domain *iovad,
 			       unsigned long size);
 static unsigned long iova_rcache_get(struct iova_domain *iovad,
 				     unsigned long size,
+				     unsigned long low_limit_pfn,
 				     unsigned long limit_pfn);
 static void free_iova_rcaches(struct iova_domain *iovad);
 static void free_cpu_cached_iovas(unsigned int cpu, struct iova_domain *iovad);
@@ -205,16 +206,18 @@ iova_insert_rbtree(struct rb_root *root, struct iova *iova,
 }
 
 static int __alloc_and_insert_iova_range(struct iova_domain *iovad,
-		unsigned long size, unsigned long limit_pfn,
-			struct iova *new, iova_align_t align)
+		unsigned long size, unsigned long low_limit_pfn, unsigned long limit_pfn,
+		struct iova *new, iova_align_t align)
 {
 	struct rb_node *curr, *prev, *start_search;
 	struct iova *curr_iova, *start_iova;
 	unsigned long flags;
 	unsigned long new_pfn, retry_pfn;
 	unsigned long align_mask;
-	unsigned long high_pfn = limit_pfn, low_pfn = iovad->start_pfn;
+	unsigned long high_pfn = limit_pfn;
+	bool retried = false;
 
+	low_limit_pfn = max(low_limit_pfn, iovad->start_pfn);
 	switch (align) {
 		case ALLOC_IOVA_ALIGN_NONE: align_mask = ~0UL; break;
 		case ALLOC_IOVA_ALIGN_SIZE: align_mask = (~0UL) << fls_long(size - 1); break;
@@ -237,14 +240,15 @@ retry:
 		prev = curr;
 		curr = rb_prev(curr);
 		curr_iova = to_iova(curr);
-	} while (curr && new_pfn <= curr_iova->pfn_hi && new_pfn >= low_pfn);
+	} while (curr && new_pfn <= curr_iova->pfn_hi && new_pfn >= low_limit_pfn);
 
-	if (high_pfn < size || new_pfn < low_pfn) {
-		if (start_search != &iovad->anchor.node && low_pfn == iovad->start_pfn && retry_pfn < limit_pfn) {
+	if (high_pfn < size || new_pfn < low_limit_pfn) {
+		if (start_search != &iovad->anchor.node && !retried && retry_pfn < limit_pfn) {
 			high_pfn = limit_pfn;
-			low_pfn = retry_pfn + 1;
+			low_limit_pfn = retry_pfn + 1;
 			curr = start_search = iova_find_limit(iovad, limit_pfn);
 			curr_iova = start_iova = to_iova(curr);
+			retried = true;
 			goto retry;
 		}
 		goto iova32_full;
@@ -297,6 +301,7 @@ static void free_iova_mem(struct iova *iova)
  */
 struct iova *
 alloc_iova(struct iova_domain *iovad, unsigned long size,
+	unsigned long low_limit_pfn,
 	unsigned long limit_pfn,
 	iova_align_t align)
 {
@@ -307,7 +312,7 @@ alloc_iova(struct iova_domain *iovad, unsigned long size,
 	if (!new_iova)
 		return NULL;
 
-	ret = __alloc_and_insert_iova_range(iovad, size, limit_pfn + 1,
+	ret = __alloc_and_insert_iova_range(iovad, size, low_limit_pfn, limit_pfn + 1,
 			new_iova, align);
 
 	if (ret) {
@@ -507,7 +512,8 @@ EXPORT_SYMBOL_GPL(free_iova);
 */
 unsigned long
 alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
-		unsigned long limit_pfn, bool flush_rcache, iova_align_t align)
+		unsigned long low_limit_pfn, unsigned long limit_pfn,
+		bool flush_rcache, iova_align_t align)
 {
 	unsigned long iova_pfn;
 	struct iova *new_iova;
@@ -521,12 +527,12 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 	if (size < (1 << (IOVA_RANGE_CACHE_MAX_SIZE - 1)))
 		size = roundup_pow_of_two(size);
 
-	iova_pfn = iova_rcache_get(iovad, size, limit_pfn + 1);
+	iova_pfn = iova_rcache_get(iovad, size, low_limit_pfn, limit_pfn + 1);
 	if (iova_pfn)
 		return iova_pfn;
 
 retry:
-	new_iova = alloc_iova(iovad, size, limit_pfn, align);
+	new_iova = alloc_iova(iovad, size, low_limit_pfn, limit_pfn, align);
 	if (!new_iova) {
 		unsigned int cpu;
 
@@ -780,13 +786,14 @@ static bool iova_magazine_empty(struct iova_magazine *mag)
 }
 
 static unsigned long iova_magazine_pop(struct iova_magazine *mag,
+				       unsigned long low_limit_pfn,
 				       unsigned long limit_pfn)
 {
 	int i;
 	unsigned long pfn;
 
 	/* Only fall back to the rbtree if we have no suitable pfns at all */
-	for (i = mag->size - 1; mag->pfns[i] > limit_pfn; i--)
+	for (i = mag->size - 1; (mag->pfns[i] > limit_pfn) || (mag->pfns[i] < low_limit_pfn); i--)
 		if (i == 0)
 			return 0;
 
@@ -953,6 +960,7 @@ static bool iova_rcache_insert(struct iova_domain *iovad, unsigned long pfn,
  * it from the 'rcache'.
  */
 static unsigned long __iova_rcache_get(struct iova_rcache *rcache,
+				       unsigned long low_limit_pfn,
 				       unsigned long limit_pfn)
 {
 	struct iova_cpu_rcache *cpu_rcache;
@@ -979,7 +987,7 @@ static unsigned long __iova_rcache_get(struct iova_rcache *rcache,
 	}
 
 	if (has_pfn)
-		iova_pfn = iova_magazine_pop(cpu_rcache->loaded, limit_pfn);
+		iova_pfn = iova_magazine_pop(cpu_rcache->loaded, low_limit_pfn, limit_pfn);
 
 	spin_unlock_irqrestore(&cpu_rcache->lock, flags);
 
@@ -993,6 +1001,7 @@ static unsigned long __iova_rcache_get(struct iova_rcache *rcache,
  */
 static unsigned long iova_rcache_get(struct iova_domain *iovad,
 				     unsigned long size,
+				     unsigned long low_limit_pfn,
 				     unsigned long limit_pfn)
 {
 	unsigned int log_size = order_base_2(size);
@@ -1000,7 +1009,7 @@ static unsigned long iova_rcache_get(struct iova_domain *iovad,
 	if (log_size >= IOVA_RANGE_CACHE_MAX_SIZE)
 		return 0;
 
-	return __iova_rcache_get(&iovad->rcaches[log_size], limit_pfn - size);
+	return __iova_rcache_get(&iovad->rcaches[log_size], low_limit_pfn, limit_pfn - size);
 }
 
 /*
