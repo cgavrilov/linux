@@ -26,14 +26,16 @@ struct iova_rcache;
 
 /* holds all the iova translations for a domain */
 struct iova_domain {
-	spinlock_t	iova_rbtree_lock; /* Lock to protect update of rbtree */
-	struct rb_root	rbroot;		/* iova domain rbtree root */
-	struct rb_node	*cached_node;	/* Save last alloced node */
-	struct rb_node	*cached32_node; /* Save last 32-bit alloced node */
-	unsigned long	granule;	/* pfn granularity for this domain */
-	unsigned long	start_pfn;	/* Lower limit for this domain */
-	unsigned long	dma_32bit_pfn;
-	struct iova	anchor;		/* rbtree lookup anchor */
+	spinlock_t	iova_rbtree_lock;    /* Lock to protect update of rbtree */
+	struct rb_root	rbroot;              /* iova domain rbtree root */
+	struct rb_node	*cached_top_node;    /* Save last alloced node from the top*/
+	struct rb_node	*cached_middle_node; /* Saved last alloced node in the middle */
+	struct rb_node	*cached32_node;      /* Save last 32-bit alloced node */
+	unsigned long	granule;             /* pfn granularity for this domain */
+	unsigned long	start_pfn;           /* Lower limit for this domain */
+	unsigned long	dma_32bit_pfn;       /* 32-bit PFN limit, constant */
+	unsigned long   middle_pfn_limit;    /* cached_middle_node is for this limit */
+	struct iova	anchor;              /* rbtree lookup anchor */
 
 	struct iova_rcache	*rcaches;
 	struct hlist_node	cpuhp_dead;
