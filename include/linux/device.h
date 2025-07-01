@@ -621,6 +621,7 @@ struct device {
 					     64 bit addresses for consistent
 					     allocations such descriptors. */
 	u64		bus_dma_limit;	/* upstream dma constraint */
+	u64		min_dma_addr;	/* force minimal value for DMA address */
 	const struct bus_dma_region *dma_range_map;
 
 	struct device_dma_parameters *dma_parms;
@@ -689,6 +690,8 @@ struct device {
 	bool			dma_iommu:1;
 #endif
 };
+
+#define dma_set_min_dma_addr(__dev__, __val__) __dev__->min_dma_addr = __val__
 
 /**
  * struct device_link - Device link representation.
