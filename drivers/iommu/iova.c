@@ -47,7 +47,9 @@ init_iova_domain(struct iova_domain *iovad, unsigned long granule,
 
 	spin_lock_init(&iovad->iova_rbtree_lock);
 	iovad->rbroot = RB_ROOT;
-	iovad->cached_node = &iovad->anchor.node;
+	iovad->cached_top_node = &iovad->anchor.node;
+	iovad->cached_middle_node = &iovad->anchor.node;
+	iovad->middle_pfn_limit = IOVA_ANCHOR;
 	iovad->cached32_node = &iovad->anchor.node;
 	iovad->granule = granule;
 	iovad->start_pfn = start_pfn;
@@ -58,22 +60,63 @@ init_iova_domain(struct iova_domain *iovad, unsigned long granule,
 }
 EXPORT_SYMBOL_GPL(init_iova_domain);
 
+static struct rb_node *iova_find_limit(struct iova_domain *iovad, unsigned long limit_pfn);
+
 static struct rb_node *
-__get_cached_rbnode(struct iova_domain *iovad, unsigned long limit_pfn)
+__get_start_rbnode(struct iova_domain *iovad, unsigned long limit_pfn)
 {
-	if (limit_pfn <= iovad->dma_32bit_pfn)
+	struct iova *cached = to_iova(iovad->cached32_node);
+	if (limit_pfn == iovad->dma_32bit_pfn || (cached->pfn_hi + 1) >= limit_pfn)
 		return iovad->cached32_node;
 
-	return iovad->cached_node;
+	cached = to_iova(iovad->cached_middle_node);
+	if (limit_pfn == iovad->middle_pfn_limit || (cached->pfn_hi + 1) >= limit_pfn)
+		return iovad->cached_middle_node;
+
+	cached = to_iova(iovad->cached_top_node);
+	if (limit_pfn == IOVA_ANCHOR || (cached->pfn_hi + 1) >= limit_pfn)
+		return iovad->cached_top_node;
+
+	return iova_find_limit(iovad, limit_pfn);
 }
 
 static void
-__cached_rbnode_insert_update(struct iova_domain *iovad, struct iova *new)
+__cached_rbnode_insert_update(struct iova_domain *iovad, struct iova *new, struct iova *start_search, unsigned long limit_pfn)
 {
-	if (new->pfn_hi < iovad->dma_32bit_pfn)
-		iovad->cached32_node = &new->node;
-	else
-		iovad->cached_node = &new->node;
+	/* insert the update only if the search started from the cached node or above it
+	 * This way, we alttempt to allocate from top to the bottom, with holes due to alignment
+	 * or DMA address limit for individual devices in the group
+	 */
+	struct iova *cached;
+
+	/* update top node */
+	cached = to_iova(iovad->cached_top_node);
+	if (limit_pfn >= start_search->pfn_lo &&
+			start_search->pfn_lo >= cached->pfn_lo &&
+			new->pfn_lo < cached->pfn_lo)
+		iovad->cached_top_node = &new->node;
+
+	/* update middle node */
+	cached = to_iova(iovad->cached_middle_node);
+	if (limit_pfn >= start_search->pfn_lo &&
+			start_search->pfn_lo >= cached->pfn_lo &&
+			 new->pfn_lo < cached->pfn_lo) {
+		iovad->cached_middle_node = &new->node;
+		if (limit_pfn != IOVA_ANCHOR && (limit_pfn > iovad->middle_pfn_limit ||
+				iovad->middle_pfn_limit == IOVA_ANCHOR))
+			iovad->middle_pfn_limit = limit_pfn;
+	} else if (limit_pfn != IOVA_ANCHOR) {
+		iovad->middle_pfn_limit = limit_pfn;
+		iovad->cached_middle_node = &new->node;
+	}
+
+	if (new->pfn_lo <= iovad->dma_32bit_pfn) {
+		cached = to_iova(iovad->cached32_node);
+		if (limit_pfn >= start_search->pfn_lo &&
+			start_search->pfn_lo >= cached->pfn_lo &&
+			 new->pfn_lo < cached->pfn_lo)
+			iovad->cached32_node = &new->node;
+	}
 }
 
 static void
@@ -87,9 +130,13 @@ __cached_rbnode_delete_update(struct iova_domain *iovad, struct iova *free)
 	     free->pfn_lo >= cached_iova->pfn_lo))
 		iovad->cached32_node = rb_next(&free->node);
 
-	cached_iova = to_iova(iovad->cached_node);
+	cached_iova = to_iova(iovad->cached_top_node);
 	if (free->pfn_lo >= cached_iova->pfn_lo)
-		iovad->cached_node = rb_next(&free->node);
+		iovad->cached_top_node = rb_next(&free->node);
+
+	cached_iova = to_iova(iovad->cached_middle_node);
+	if (free->pfn_lo >= cached_iova->pfn_lo && free->pfn_lo < iovad->middle_pfn_limit)
+		iovad->cached_middle_node = rb_next(&free->node);
 }
 
 static struct rb_node *iova_find_limit(struct iova_domain *iovad, unsigned long limit_pfn)
@@ -161,8 +208,8 @@ static int __alloc_and_insert_iova_range(struct iova_domain *iovad,
 		unsigned long size, unsigned long limit_pfn,
 			struct iova *new, iova_align_t align)
 {
-	struct rb_node *curr, *prev;
-	struct iova *curr_iova;
+	struct rb_node *curr, *prev, *start_search;
+	struct iova *curr_iova, *start_iova;
 	unsigned long flags;
 	unsigned long new_pfn, retry_pfn;
 	unsigned long align_mask;
@@ -179,8 +226,8 @@ static int __alloc_and_insert_iova_range(struct iova_domain *iovad,
 	/* Walk the tree backwards */
 	spin_lock_irqsave(&iovad->iova_rbtree_lock, flags);
 
-	curr = __get_cached_rbnode(iovad, limit_pfn);
-	curr_iova = to_iova(curr);
+	curr = start_search = __get_start_rbnode(iovad, limit_pfn);
+	curr_iova = start_iova = to_iova(curr);
 	retry_pfn = curr_iova->pfn_hi;
 
 retry:
@@ -193,11 +240,11 @@ retry:
 	} while (curr && new_pfn <= curr_iova->pfn_hi && new_pfn >= low_pfn);
 
 	if (high_pfn < size || new_pfn < low_pfn) {
-		if (low_pfn == iovad->start_pfn && retry_pfn < limit_pfn) {
+		if (start_search != &iovad->anchor.node && low_pfn == iovad->start_pfn && retry_pfn < limit_pfn) {
 			high_pfn = limit_pfn;
 			low_pfn = retry_pfn + 1;
-			curr = iova_find_limit(iovad, limit_pfn);
-			curr_iova = to_iova(curr);
+			curr = start_search = iova_find_limit(iovad, limit_pfn);
+			curr_iova = start_iova = to_iova(curr);
 			goto retry;
 		}
 		goto iova32_full;
@@ -209,7 +256,7 @@ retry:
 
 	/* If we have 'prev', it's a valid place to start the insertion. */
 	iova_insert_rbtree(&iovad->rbroot, new, prev);
-	__cached_rbnode_insert_update(iovad, new);
+	__cached_rbnode_insert_update(iovad, new, start_iova, limit_pfn);
 
 	spin_unlock_irqrestore(&iovad->iova_rbtree_lock, flags);
 	return 0;
