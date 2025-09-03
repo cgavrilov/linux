@@ -2276,7 +2276,7 @@ static void nvme_free_host_mem(struct nvme_dev *dev)
 {
 	if (dev->hmb_sgt)
 		dma_free_noncontiguous(dev->dev, dev->host_mem_size,
-				dev->hmb_sgt, DMA_BIDIRECTIONAL);
+				dev->hmb_sgt, DMA_BIDIRECTIONAL, 0);
 	else
 		nvme_free_host_mem_multi(dev);
 
@@ -2299,7 +2299,7 @@ static int nvme_alloc_host_mem_single(struct nvme_dev *dev, u64 size)
 			GFP_KERNEL);
 	if (!dev->host_mem_descs) {
 		dma_free_noncontiguous(dev->dev, size, dev->hmb_sgt,
-				DMA_BIDIRECTIONAL);
+				DMA_BIDIRECTIONAL, DMA_ATTR_SKIP_CACHE_RETAIN);
 		dev->hmb_sgt = NULL;
 		return -ENOMEM;
 	}

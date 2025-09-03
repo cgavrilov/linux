@@ -816,13 +816,13 @@ static void free_single_sgt(struct device *dev, size_t size,
 }
 
 void dma_free_noncontiguous(struct device *dev, size_t size,
-		struct sg_table *sgt, enum dma_data_direction dir)
+		struct sg_table *sgt, enum dma_data_direction dir, unsigned long attrs)
 {
 	trace_dma_free_sgt(dev, sgt, size, dir);
 	debug_dma_unmap_sg(dev, sgt->sgl, sgt->orig_nents, dir);
 
 	if (use_dma_iommu(dev))
-		iommu_dma_free_noncontiguous(dev, size, sgt, dir);
+		iommu_dma_free_noncontiguous(dev, size, sgt, dir, attrs);
 	else
 		free_single_sgt(dev, size, sgt, dir);
 }

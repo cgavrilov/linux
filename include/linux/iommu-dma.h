@@ -50,7 +50,7 @@ void iommu_dma_unmap_resource(struct device *dev, dma_addr_t handle,
 struct sg_table *iommu_dma_alloc_noncontiguous(struct device *dev, size_t size,
 		enum dma_data_direction dir, gfp_t gfp, unsigned long attrs);
 void iommu_dma_free_noncontiguous(struct device *dev, size_t size,
-		struct sg_table *sgt, enum dma_data_direction dir);
+		struct sg_table *sgt, enum dma_data_direction dir, unsigned long attrs);
 void *iommu_dma_vmap_noncontiguous(struct device *dev, size_t size,
 		struct sg_table *sgt);
 #define iommu_dma_vunmap_noncontiguous(dev, vaddr) \

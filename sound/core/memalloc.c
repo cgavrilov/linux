@@ -572,7 +572,7 @@ static void *snd_dma_noncontig_alloc(struct snd_dma_buffer *dmab, size_t size)
 		/* store the first page address for convenience */
 		dmab->addr = snd_sgbuf_get_addr(dmab, 0);
 	} else {
-		dma_free_noncontiguous(dmab->dev.dev, size, sgt, dmab->dev.dir);
+		dma_free_noncontiguous(dmab->dev.dev, size, sgt, dmab->dev.dir, DMA_ATTR_SKIP_CACHE_RETAIN);
 	}
 	return p;
 }
@@ -581,7 +581,7 @@ static void snd_dma_noncontig_free(struct snd_dma_buffer *dmab)
 {
 	dma_vunmap_noncontiguous(dmab->dev.dev, dmab->area);
 	dma_free_noncontiguous(dmab->dev.dev, dmab->bytes, dmab->private_data,
-			       dmab->dev.dir);
+			       dmab->dev.dir, 0);
 }
 
 static int snd_dma_noncontig_mmap(struct snd_dma_buffer *dmab,

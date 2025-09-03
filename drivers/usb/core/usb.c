@@ -1070,7 +1070,7 @@ void *usb_alloc_noncoherent(struct usb_device *dev, size_t size,
 
 	buffer = dma_vmap_noncontiguous(dmadev, size, sgt);
 	if (!buffer) {
-		dma_free_noncontiguous(dmadev, size, sgt, dir);
+		dma_free_noncontiguous(dmadev, size, sgt, dir, DMA_ATTR_SKIP_CACHE_RETAIN);
 		return NULL;
 	}
 
@@ -1106,7 +1106,7 @@ void usb_free_noncoherent(struct usb_device *dev, size_t size,
 
 	dmadev = bus_to_hcd(dev->bus)->self.sysdev;
 	dma_vunmap_noncontiguous(dmadev, addr);
-	dma_free_noncontiguous(dmadev, size, table, dir);
+	dma_free_noncontiguous(dmadev, size, table, dir, 0);
 }
 EXPORT_SYMBOL_GPL(usb_free_noncoherent);
 
