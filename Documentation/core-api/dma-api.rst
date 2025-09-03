@@ -660,11 +660,12 @@ reused.
 	void
 	dma_free_noncontiguous(struct device *dev, size_t size,
 			       struct sg_table *sgt,
-			       enum dma_data_direction dir)
+			       enum dma_data_direction dir, unsigned long attrs)
 
 Free memory previously allocated using dma_alloc_noncontiguous().  dev, size,
 and dir must all be the same as those passed into dma_alloc_noncontiguous().
-sgt must be the pointer returned by dma_alloc_noncontiguous().
+sgt must be the pointer returned by dma_alloc_noncontiguous(). attrs may contain
+release attributes.
 
 ::
 

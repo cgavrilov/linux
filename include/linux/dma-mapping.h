@@ -79,14 +79,21 @@
 #define DMA_ATTR_MMIO		(1UL << 10)
 
 /*
+ * DMA_ATTR_SKIP_CACHE_RETAIN: Request no DMA address caching upon release or
+ * failed allocation.
+ */
+
+#define DMA_ATTR_SKIP_CACHE_RETAIN (1UL << 11)
+
+/*
  * Alignment flags when using IOMMU. In the case of direct mapping, DMA address
  * will typically have the same alignment as the virtual address. So, alignment
  * expectation works in general case if the virtual address is aligned to the
  * requested alignment.
  */
-#define DMA_ATTR_IOVA_ALIGN_PMD (1UL << 11)
-#define DMA_ATTR_IOVA_ALIGN_PUD (1UL << 12)
-#define DMA_ATTR_IOVA_ALIGN_SIZE (1UL << 13)
+#define DMA_ATTR_IOVA_ALIGN_PMD (1UL << 12)
+#define DMA_ATTR_IOVA_ALIGN_PUD (1UL << 13)
+#define DMA_ATTR_IOVA_ALIGN_SIZE (1UL << 14)
 
 /*
  * A dma_addr_t can hold any valid DMA or bus address for the platform.  It can
@@ -198,7 +205,7 @@ unsigned long dma_get_merge_boundary(struct device *dev);
 struct sg_table *dma_alloc_noncontiguous(struct device *dev, size_t size,
 		enum dma_data_direction dir, gfp_t gfp, unsigned long attrs);
 void dma_free_noncontiguous(struct device *dev, size_t size,
-		struct sg_table *sgt, enum dma_data_direction dir);
+		struct sg_table *sgt, enum dma_data_direction dir, unsigned long attrs);
 void *dma_vmap_noncontiguous(struct device *dev, size_t size,
 		struct sg_table *sgt);
 void dma_vunmap_noncontiguous(struct device *dev, void *vaddr);
@@ -327,7 +334,7 @@ static inline struct sg_table *dma_alloc_noncontiguous(struct device *dev,
 	return NULL;
 }
 static inline void dma_free_noncontiguous(struct device *dev, size_t size,
-		struct sg_table *sgt, enum dma_data_direction dir)
+		struct sg_table *sgt, enum dma_data_direction dir, unsigned long attrs)
 {
 }
 static inline void *dma_vmap_noncontiguous(struct device *dev, size_t size,

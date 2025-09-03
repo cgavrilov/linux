@@ -175,7 +175,7 @@ static void vb2_dc_put(void *buf_priv)
 		if (buf->vaddr)
 			dma_vunmap_noncontiguous(buf->dev, buf->vaddr);
 		dma_free_noncontiguous(buf->dev, buf->size,
-				       buf->dma_sgt, buf->dma_dir);
+				       buf->dma_sgt, buf->dma_dir, 0);
 	} else {
 		if (buf->sgt_base) {
 			sg_free_table(buf->sgt_base);
