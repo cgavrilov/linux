@@ -1247,6 +1247,14 @@ new_segment:
 			int i = skb_shinfo(skb)->nr_frags;
 			struct page_frag *pfrag = sk_page_frag(sk);
 
+			if (pfrag->page && ((pfrag->offset + SMP_CACHE_BYTES) <= pfrag->size) &&
+					!skb_can_coalesce(skb, i, pfrag->page, pfrag->offset)) {
+				/* new fragment will be used */
+				pfrag->offset = ALIGN(pfrag->offset, SMP_CACHE_BYTES);
+				if (unlikely(pfrag->offset > pfrag->size))
+					pfrag->offset = size;
+			}
+
 			if (!sk_page_frag_refill(sk, pfrag))
 				goto wait_for_space;
 
