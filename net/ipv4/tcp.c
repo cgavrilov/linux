@@ -1276,6 +1276,8 @@ new_segment:
 			}
 
 			copy = tcp_wmem_schedule(sk, copy);
+			if (copy > SMP_CACHE_BYTES)
+				copy = ALIGN_DOWN(copy, SMP_CACHE_BYTES);
 			if (!copy)
 				goto wait_for_space;
 
