@@ -1892,7 +1892,7 @@ unsigned int tcp_current_mss(struct sock *sk)
 		mss_now -= delta;
 	}
 
-	return ALIGN_DOWN(mss_now, SMP_CACHE_BYTES);
+	return (mss_now > SMP_CACHE_BYTES) ? ALIGN_DOWN(mss_now, SMP_CACHE_BYTES) : mss_now;
 }
 
 /* RFC2861, slow part. Adjust cwnd, after it was not full during one rto.
